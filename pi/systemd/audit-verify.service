@@ -1,0 +1,7 @@
+[Unit]
+Description=Verificer audit-loggens hash-kaede
+
+[Service]
+Type=oneshot
+User=auditlog
+ExecStart=/usr/local/bin/audit-verify

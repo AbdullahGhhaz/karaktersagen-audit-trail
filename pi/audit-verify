@@ -1,0 +1,20 @@
+#!/bin/bash
+# audit-verify - genberegner hele hash-kæden og melder det første brud.
+# Brug: audit-verify [logfil]   (standard: /var/log/karakter/audit.log)
+LOG="${1:-/var/log/karakter/audit.log}"
+prev="GENESIS"
+n=0
+
+while IFS=$'\t' read -r ts src p h payload; do
+        n=$((n+1))
+        calc=$(printf '%s|%s|%s|%s' "$p" "$ts" "$src" "$payload" | sha256sum | cut -d' ' -f1)
+        # To tjek: peger linjen på den rigtige forrige hash, og passer dens egen hash?
+        if [[ "$p" != "$prev" || "$h" != "$calc" ]]; then
+                echo "BRUD i kæden ved linje $n ($ts)"
+                logger -t audit-verify -p auth.crit "Hash-kæden er brudt ved linje $n"
+                exit 1
+        fi
+        prev="$h"
+done < "$LOG"
+echo "OK: $n hændelser, kæden er intakt"
+logger -t audit-verify "OK: $n hændelser"

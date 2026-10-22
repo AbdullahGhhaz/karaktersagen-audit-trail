@@ -1,0 +1,32 @@
+#!/bin/bash
+# audit-receive - modtager en audit-hændelse (JSON) på stdin og tilføjer den til hash-kæden.
+# Køres automatisk af sshd for brugeren auditlog (forced command i authorized_keys).
+LOG="${AUDIT_LOG:-/var/log/karakter/audit.log}"
+
+# Læs én linje (højst 5 sek.) og fjern et evt. Windows-linjeskift (\r)
+IFS= read -r -t 5 payload || exit 1
+payload="${payload%$'\r'}"
+
+# Afvis tomt input, for langt input, tabulatorer og alt der ikke ligner JSON (fail closed)
+if [[ -z "$payload" || ${#payload} -gt 4096 || "$payload" == *$'\t'* || "$payload" != \{*\} ]]; then
+        logger -t audit-receive -p auth.warning "Afvist input"
+        exit 2
+fi
+
+# Afsenderens IP fra SSH-forbindelsen
+src="${SSH_CONNECTION%% *}"
+src="${src:-lokal}"
+
+# Lås, så to hændelser ikke skrives samtidig (race condition)
+exec 9>>"$LOG.lock"
+flock 9
+
+# Hash-kæde: ny hash = sha256(forrige hash | tid | kilde | hændelse)
+prev=$(tail -n 1 "$LOG" 2>/dev/null | cut -f4)
+prev="${prev:-GENESIS}"
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+hash=$(printf '%s|%s|%s|%s' "$prev" "$ts" "$src" "$payload" | sha256sum | cut -d' ' -f1)
+printf '%s\t%s\t%s\t%s\t%s\n' "$ts" "$src" "$prev" "$hash" "$payload" >> "$LOG"
+logger -t audit-receive "Hændelse fra $src gemt ($hash)"
+echo "OK $hash"

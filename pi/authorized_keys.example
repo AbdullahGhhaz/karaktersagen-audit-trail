@@ -1,0 +1,3 @@
+# /home/auditlog/.ssh/authorized_keys  (ejer auditlog, rettigheder 600)
+# Audit-nøglen fra Windows må KUN køre modtagerscriptet - ingen shell, ingen forwarding.
+command="/usr/local/bin/audit-receive",restrict ssh-ed25519 AAAA...DIN_OFFENTLIGE_NØGLE... audit-key
